@@ -1,6 +1,6 @@
 # GOnzaNES
 
-A WIP NES emulate in Golang
+A WIP NES emulator in Golang
 
 Made just to learn emudev and golang
 

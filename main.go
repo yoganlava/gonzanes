@@ -15,9 +15,7 @@ func main() {
 
 	cpu.LoadRom(rom)
 
-
 	for {
 		cpu.Step()
 	}
-
 }

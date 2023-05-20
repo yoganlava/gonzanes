@@ -65,7 +65,7 @@ func (c *CPU) Reset() {
 }
 
 func (c *CPU) fetch() uint8 {
-	byte := c.bus.read(c.pc)
+	byte := c.bus.Read(c.pc)
 	c.pc++
 	return byte
 }
@@ -90,7 +90,7 @@ func (c *CPU) stackPushU16(value uint16) {
 func (c *CPU) stackPopU16() uint16 {
 	lo := c.stackPop()
 	hi := c.stackPop()
-	return uint16(hi << 8) | uint16(lo)
+	return uint16(hi) << 8 | uint16(lo)
 }
 
 
@@ -127,7 +127,7 @@ func (c *CPU) isSRFlagSet(flag uint8) bool {
 }
 
 func (c *CPU) lda(addressingMode AddressingMode) {
-	c.ac = c.bus.read(c.getOperandAddressInMode(addressingMode))
+	c.ac = c.bus.Read(c.getOperandAddressInMode(addressingMode))
 	c.setZNStatus(c.ac)
 	c.pc += 1
 }

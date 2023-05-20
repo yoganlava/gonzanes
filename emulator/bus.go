@@ -4,14 +4,12 @@ import "fmt"
 
 const (
 	RamStart = 0x0000
-	RamEnd = 0x7FFF
-	RamMirrorsEnd = 0x17FF
+	RamEnd = 0x07FF
+	RamMirrorsEnd = 0x1FFF
 	PPURegistersStart = 0x2000
 	PPURegistersEnd = 0x3FFF
-	// CartridgeSpaceStart = 0x4020
 	PRGROMStart = 0x8000
 	PRGROMEnd = 0xFFFF
-	// CartridgeSpaceEnd = 0xFFFF
 )
 
 type Bus struct {
@@ -23,7 +21,7 @@ func (b *Bus) LoadRom(prgROM []uint8) {
 	b.prgROM = prgROM
 }
 
-func (b *Bus) read(addr uint16) uint8 {
+func (b *Bus) Read(addr uint16) uint8 {
 	if addr >= RamStart && addr <= RamMirrorsEnd {
 		return b.cpuRAM[addr % RamEnd]
 	} else if addr >= PPURegistersStart && addr <= PPURegistersEnd {
@@ -50,7 +48,7 @@ func (b *Bus) Write(addr uint16, data uint8) {
 }
 
 func (b *Bus) readU16(addr uint16) uint16 {
-	return uint16(b.read(addr + 1)) << 8 | uint16(b.read(addr))
+	return uint16(b.Read(addr + 1)) << 8 | uint16(b.Read(addr))
 }
 
 func (b *Bus) writeU16(addr uint16, data uint16) {

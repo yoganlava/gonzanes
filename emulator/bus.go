@@ -47,11 +47,11 @@ func (b *Bus) Write(addr uint16, data uint8) {
 	
 }
 
-func (b *Bus) readU16(addr uint16) uint16 {
+func (b *Bus) ReadU16(addr uint16) uint16 {
 	return uint16(b.Read(addr + 1)) << 8 | uint16(b.Read(addr))
 }
 
-func (b *Bus) writeU16(addr uint16, data uint16) {
+func (b *Bus) WriteU16(addr uint16, data uint16) {
 	hi := uint8(data >> 8);
 	lo := uint8(data & 0xff);
 	b.Write(addr, lo)

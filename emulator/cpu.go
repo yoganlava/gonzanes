@@ -6,6 +6,7 @@ type AddressingMode int
 type StatusFlag int
 
 
+
 const (
 	Immediate AddressingMode = iota
 	ZeroPage
@@ -20,14 +21,16 @@ const (
 )
 
 const (
-	StatusNegativeFlag = 0b10000000
-	StatusOverflowFlag = 0b01000000
-	StatusBreak = 0b00010000
-	StatusDecimalMode = 0b00001000
-	StatusInterruptDisable = 0b00000100
-	StatusZeroFlag = 0b00000010
-	StatusCarryFlag = 0b00000001
+	StatusNegativeFlag = uint8(0b10000000)
+	StatusOverflowFlag = uint8(0b01000000)
+	StatusBreak = uint8(0b00010000)
+	StatusDecimalMode = uint8(0b00001000)
+	StatusInterruptDisable = uint8(0b00000100)
+	StatusZeroFlag = uint8(0b00000010)
+	StatusCarryFlag = uint8(0b00000001)
 )
+
+var OpCodesMap = InitOpCodes()
 
 type CPU struct {
 	bus Bus
@@ -42,7 +45,7 @@ type CPU struct {
 	// two-byte program counter
 	pc uint16
 	// stack pointer
-	sp uint16
+	sp uint8
 	// status register
 	// 1 bit per status
 	// carry flag, zero flag, interrupt disable, decimal mode, brk command, overflow flag, neg flag
@@ -61,7 +64,7 @@ func (c *CPU) Reset() {
 	c.sp = 0
 
 	// reset pc to addr stored in reset vector
-	c.pc = c.bus.readU16(0xFFFC)
+	c.pc = c.bus.ReadU16(0xFFFC)
 }
 
 func (c *CPU) fetch() uint8 {
@@ -96,7 +99,7 @@ func (c *CPU) stackPopU16() uint16 {
 
 func (c *CPU) LoadRom(rom *ROM) {
 	c.bus.LoadRom(rom.prgROM)
-	c.pc = c.bus.readU16(0xFFFC)
+	c.pc = c.bus.ReadU16(0xFFFC)
 
 	fmt.Printf("Reset Vector: %X\n", c.pc)
 }
@@ -105,8 +108,16 @@ func (c *CPU) getOperandAddressInMode(addressingMode AddressingMode) uint16 {
 	switch addressingMode {
 		case Immediate:
 			return c.pc
+		case ZeroPageX:
+			return uint16(c.bus.Read(c.pc) + c.ix)
+		case ZeroPageY:
+			return uint16(c.bus.Read(c.pc) + c.iy)
 		case Absolute:
-			return c.bus.readU16(c.pc)
+			return c.bus.ReadU16(c.pc)
+		case AbsoluteX:
+			return c.bus.ReadU16(c.pc) + uint16(c.ix)
+		case AbsoluteY:
+			return c.bus.ReadU16(c.pc) + uint16(c.iy)
 	}
 
 	panic("Invalid addressing mode")
@@ -129,19 +140,26 @@ func (c *CPU) isSRFlagSet(flag uint8) bool {
 func (c *CPU) lda(addressingMode AddressingMode) {
 	c.ac = c.bus.Read(c.getOperandAddressInMode(addressingMode))
 	c.setZNStatus(c.ac)
-	c.pc += 1
+}
+
+func (c *CPU) ldx(addressingMode AddressingMode) {
+	c.ix = c.bus.Read(c.getOperandAddressInMode(addressingMode))
+	c.setZNStatus(c.ix)
 }
 
 func (c *CPU) sta(addressingMode AddressingMode) {
-	c.bus.Write(c.bus.readU16(c.getOperandAddressInMode(addressingMode)), c.ac)
-	c.pc += 2
+	c.bus.Write(c.bus.ReadU16(c.getOperandAddressInMode(addressingMode)), c.ac)
 }
 
 
 func (c *CPU) Step() {
-	// fetch opcode
+
 	currentOpcode := c.fetch()
+
+	programCounterStart := c.pc
+
 	fmt.Printf("Current OpCode: %X\n", currentOpcode)
+	
 	switch currentOpcode {
 		// LDA Immediate
 		case 0xA9:
@@ -152,22 +170,53 @@ func (c *CPU) Step() {
 			c.sr |= StatusInterruptDisable
 		// JMP Absolute
 		case 0x4C:
-			c.pc = c.bus.readU16(c.pc)
+			c.pc = c.bus.ReadU16(c.pc)
 		// STA Absolute
 		case 0x8D:
 			c.sta(Absolute)
-		// BNE
+		// STA Zero Page X
+		case 0x95:
+			c.sta(ZeroPageX)
+		// STA Absolute X
+		case 0x9D:
+			c.sta(AbsoluteX)
+		// CLD - Clear Decimal Mode
 		case 0xD8:
-			offset := c.bus.readU16(c.pc)
-			if c.isSRFlagSet(StatusZeroFlag) {
-				c.pc += offset
-			}
+			c.sr &= ^StatusDecimalMode
 		// JSR
 		case 0x20:
 			// address - 1
 			c.stackPushU16(c.pc + 2 - 1)
-			c.pc = c.bus.readU16(c.pc)
+			c.pc = c.bus.ReadU16(c.pc)
+		// LDX - Load X Register
+		case 0xA2:
+			c.ldx(Immediate)
+		// TXS - Transfer X to Stack Pointer
+		case 0x9A:
+			c.sp = c.ix
+		// TAX - Transfer Accumulator to X
+		case 0xAA:
+			c.ix = c.ac
+			c.setZNStatus(c.ix)
+		// INX - Increment X Register
+		case 0xE8:
+			c.ix++
+			c.setZNStatus(c.ix)
+		// BNE
+		case 0xD0:
+			if (c.sr & StatusZeroFlag) == 0 {
+				c.pc += 1 + uint16(c.bus.Read(c.pc))
+			}
+		// TSX - Transfer Stack Pointer to X
+		case 0xBA:
+			c.ix = c.sp
+			c.setZNStatus(c.ix)
 		default:
 			panic(fmt.Sprintf("Unknown Instruction: %X\n", currentOpcode))
 	}
+
+	if c.pc == programCounterStart {
+		c.pc += OpCodesMap[currentOpcode].length - 1
+	}
+
 }

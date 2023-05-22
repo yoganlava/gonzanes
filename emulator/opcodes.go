@@ -159,5 +159,13 @@ func InitOpCodes() map[uint8]OpCode {
 			0xC9,
 			2,
 		},
+		0x90: {
+			0x90,
+			2,
+		},
+		0x69: {
+			0x69,
+			2,
+		},
 	}
 }

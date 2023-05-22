@@ -53,7 +53,13 @@ type CPU struct {
 }
 
 func Init() *CPU {
-	return &CPU{}
+	return &CPU{
+		bus: Bus{
+			ppu: PPU{
+				ppuAddrHigh: true,
+			},
+		},
+	}
 }
 
 func (c *CPU) Reset() {
@@ -98,7 +104,7 @@ func (c *CPU) stackPopU16() uint16 {
 }
 
 func (c *CPU) LoadRom(rom *ROM) {
-	c.bus.LoadRom(rom.prgROM)
+	c.bus.LoadRom(rom)
 	c.pc = c.bus.ReadU16(0xFFFC)
 
 	fmt.Printf("Reset Vector: %X\n", c.pc)
@@ -211,6 +217,26 @@ func (c *CPU) sta(addressingMode AddressingMode) {
 
 func (c *CPU) stx(addressingMode AddressingMode) {
 	c.bus.Write(c.bus.ReadU16(c.getOperandAddressInMode(addressingMode)), c.ix)
+}
+
+func (c *CPU) adc(addressingMode AddressingMode) {
+	// TODO Overflow flag
+	ac := c.ac
+	data := c.bus.Read(c.getOperandAddressInMode(addressingMode))
+	result := uint16(ac) + uint16(data) + uint16((c.sr & StatusCarryFlag))
+	// Is there a better way?
+	if result > 255 {
+		c.sr |= StatusCarryFlag
+	}
+	// Ugly
+	if ((ac^data)&0x80) == 0 && (ac^c.ac)&0x80 != 0 {
+		c.sr |= StatusOverflowFlag
+	}
+	c.ac = uint8(result)
+	if c.ac == 0 {
+		c.sr |= StatusZeroFlag
+	}
+	c.setZNStatus(c.ac)
 }
 
 func (c *CPU) Step() {
@@ -359,6 +385,14 @@ func (c *CPU) Step() {
 	// CMP Immediate
 	case 0xC9:
 		c.cmp(Immediate)
+	// BCC
+	case 0x90:
+		if (c.sr & StatusCarryFlag) == 0 {
+			c.pc += 1 + uint16(c.bus.Read(c.pc))
+		}
+	// ADC Immediate
+	case 0x69:
+		c.adc(Immediate)
 	default:
 		panic(fmt.Sprintf("Unknown Instruction: 0x%X at 0x%X\n", currentOpcode, c.pc-1))
 	}
